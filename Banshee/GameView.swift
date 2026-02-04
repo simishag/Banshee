@@ -42,7 +42,7 @@ struct GameHUDView: View {
         VStack(spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Turn \(gameState.turnNumber)")
+                    Text(gameState.turnNumber == 0 ? "Setup" : "Turn \(gameState.turnNumber)")
                         .font(.headline)
                         .foregroundStyle(.white)
                     Text(gameState.phase.title)
@@ -51,6 +51,14 @@ struct GameHUDView: View {
                 Spacer()
                 Button("Exit") { onExit() }
                     .buttonStyle(CompactButtonStyle())
+            }
+
+            if let hint = gameState.phaseHint {
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let log = gameState.lastCombatLog {

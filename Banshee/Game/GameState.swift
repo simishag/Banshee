@@ -4,8 +4,8 @@ import SpriteKit
 final class GameState: ObservableObject {
     @Published var units: [Unit] = []
     @Published var ogre: OgreUnit?
-    @Published var phase: Phase = .ogreMove
-    @Published var turnNumber: Int = 1
+    @Published var phase: Phase = .defenderSetup
+    @Published var turnNumber: Int = 0
     @Published var lastCombatLog: String?
     @Published var selectedUnitID: UUID?
     @Published var selectedAttackers: Set<UUID> = []
@@ -53,6 +53,13 @@ final class GameState: ObservableObject {
         lastCombatLog = nil
 
         switch phase {
+        case .defenderSetup:
+            phase = .ogreSetup
+        case .ogreSetup:
+            turnNumber = 1
+            phase = .ogreMove
+            resetFireFlags(for: .ogre)
+            resetFireFlags(for: .defender)
         case .ogreMove:
             phase = .ogreFire
             resetFireFlags(for: .ogre)
@@ -68,6 +75,7 @@ final class GameState: ObservableObject {
             endTurn()
         }
         scene.syncUnits()
+        scene.updateHighlightHexes(validHexesForSelection())
     }
 
     func endTurn() {
@@ -77,6 +85,7 @@ final class GameState: ObservableObject {
         resetFireFlags(for: .ogre)
         resetFireFlags(for: .defender)
         scene.syncUnits()
+        scene.updateHighlightHexes(validHexesForSelection())
     }
 
     func resetSelectionsForNewTurn() {
@@ -105,6 +114,7 @@ final class GameState: ObservableObject {
             return updated
         } ?? []
         scene.updateSelection()
+        scene.updateHighlightHexes([])
     }
 
     func resetFireFlags(for side: Side) {
@@ -162,11 +172,17 @@ final class GameState: ObservableObject {
         if let ogre, ogre.position == hex {
             selectedUnitID = ogre.id
             scene.updateSelection()
+            scene.updateHighlightHexes(validHexesForSelection())
             return
         }
 
         if let unit = units.first(where: { $0.position == hex && $0.status != .destroyed }) {
             selectUnit(unit)
+            return
+        }
+
+        if phase.isSetupPhase {
+            attemptPlacement(to: hex)
             return
         }
 
@@ -190,6 +206,7 @@ final class GameState: ObservableObject {
         }
         selectedUnitID = unit.id
         scene.updateSelection()
+        scene.updateHighlightHexes(validHexesForSelection())
     }
 
     func attemptMove(to hex: Hex) {
@@ -198,6 +215,17 @@ final class GameState: ObservableObject {
             moveOgre(to: hex)
         } else if let index = units.firstIndex(where: { $0.id == selected }) {
             moveUnit(at: index, to: hex)
+        }
+    }
+
+    func attemptPlacement(to hex: Hex) {
+        guard let selected = selectedUnitID else { return }
+        if phase == .defenderSetup {
+            if let index = units.firstIndex(where: { $0.id == selected }) {
+                placeDefenderUnit(at: index, to: hex)
+            }
+        } else if phase == .ogreSetup {
+            placeOgre(to: hex)
         }
     }
 
@@ -230,6 +258,16 @@ final class GameState: ObservableObject {
         scene.syncUnits()
     }
 
+    func placeOgre(to hex: Hex) {
+        guard phase == .ogreSetup, var ogre else { return }
+        guard isOgrePlacementValid(hex) else { return }
+        ogre.position = hex
+        self.ogre = ogre
+        scene.animateOgreMove()
+        scene.syncUnits()
+        scene.updateHighlightHexes(validHexesForSelection())
+    }
+
     func moveUnit(at index: Int, to hex: Hex) {
         let unit = units[index]
         guard unit.side == .defender else { return }
@@ -254,6 +292,17 @@ final class GameState: ObservableObject {
             scene.animateUnitMove(unitID: unit.id)
         }
         scene.syncUnits()
+    }
+
+    func placeDefenderUnit(at index: Int, to hex: Hex) {
+        let unit = units[index]
+        guard unit.side == .defender else { return }
+        guard phase == .defenderSetup else { return }
+        guard isDefenderPlacementValid(hex, movingUnit: unit) else { return }
+        units[index].position = hex
+        scene.animateUnitMove(unitID: unit.id)
+        scene.syncUnits()
+        scene.updateHighlightHexes(validHexesForSelection())
     }
 
     func ramOgre(with unit: Unit) {
@@ -451,6 +500,107 @@ final class GameState: ObservableObject {
         scene.syncUnits()
     }
 
+    func validHexesForSelection() -> [Hex] {
+        guard let selectedID = selectedUnitID else { return [] }
+        if phase == .defenderSetup, let unit = units.first(where: { $0.id == selectedID }) {
+            return validDefenderPlacementHexes(for: unit)
+        }
+        if phase == .ogreSetup, ogre?.id == selectedID {
+            return validOgrePlacementHexes()
+        }
+        if phase.isMovePhase {
+            if let ogre, ogre.id == selectedID {
+                return validMoveHexesForOgre(ogre)
+            }
+            if let unit = units.first(where: { $0.id == selectedID }) {
+                return validMoveHexesForUnit(unit)
+            }
+        }
+        return []
+    }
+
+    func validDefenderPlacementHexes(for unit: Unit) -> [Hex] {
+        guard unit.side == .defender else { return [] }
+        var hexes: [Hex] = []
+        for r in 0..<map.height {
+            for q in 0..<map.width {
+                let hex = Hex(q: q, r: r)
+                if isDefenderPlacementValid(hex, movingUnit: unit) {
+                    hexes.append(hex)
+                }
+            }
+        }
+        return hexes
+    }
+
+    func validOgrePlacementHexes() -> [Hex] {
+        (0..<map.width).map { Hex(q: $0, r: map.height - 1) }.filter { isOgrePlacementValid($0) }
+    }
+
+    func validMoveHexesForUnit(_ unit: Unit) -> [Hex] {
+        guard unit.side == .defender else { return [] }
+        let maxMove = phase == .gevSecondMove ? 3 : unit.type.movement
+        var hexes: [Hex] = []
+        for r in 0..<map.height {
+            for q in 0..<map.width {
+                let hex = Hex(q: q, r: r)
+                if canReach(start: unit.position, end: hex, maxMove: maxMove) && isMoveDestinationValid(hex, movingUnit: unit) {
+                    hexes.append(hex)
+                }
+            }
+        }
+        return hexes
+    }
+
+    func validMoveHexesForOgre(_ ogre: OgreUnit) -> [Hex] {
+        var hexes: [Hex] = []
+        for r in 0..<map.height {
+            for q in 0..<map.width {
+                let hex = Hex(q: q, r: r)
+                if canReach(start: ogre.position, end: hex, maxMove: ogre.movement) && isOgreMoveDestinationValid(hex) {
+                    hexes.append(hex)
+                }
+            }
+        }
+        return hexes
+    }
+
+    func isDefenderPlacementValid(_ hex: Hex, movingUnit: Unit) -> Bool {
+        guard map.isInside(hex), !map.isBlocked(hex) else { return false }
+        guard (hex.q + hex.r) >= 8 else { return false }
+        let occupants = units.filter { $0.position == hex && $0.status != .destroyed && $0.id != movingUnit.id }
+        if movingUnit.type == .infantry {
+            let nonInfantry = occupants.contains(where: { $0.type != .infantry })
+            let strength = occupants.filter { $0.type == .infantry }.reduce(0) { $0 + $1.strength }
+            return !nonInfantry && (strength + movingUnit.strength) <= 3
+        }
+        return occupants.isEmpty
+    }
+
+    func isOgrePlacementValid(_ hex: Hex) -> Bool {
+        guard map.isInside(hex), !map.isBlocked(hex) else { return false }
+        guard hex.r == map.height - 1 else { return false }
+        let occupants = units.filter { $0.position == hex && $0.status != .destroyed }
+        return !occupants.contains(where: { $0.type != .infantry })
+    }
+
+    func isMoveDestinationValid(_ hex: Hex, movingUnit: Unit) -> Bool {
+        guard map.isInside(hex), !map.isBlocked(hex) else { return false }
+        if movingUnit.type != .infantry {
+            return !units.contains(where: { $0.position == hex && $0.status != .destroyed })
+        }
+        let occupants = units.filter { $0.position == hex && $0.status != .destroyed && $0.id != movingUnit.id }
+        let nonInfantry = occupants.contains(where: { $0.type != .infantry })
+        let strength = occupants.filter { $0.type == .infantry }.reduce(0) { $0 + $1.strength }
+        return !nonInfantry && (strength + movingUnit.strength) <= 3
+    }
+
+    func isOgreMoveDestinationValid(_ hex: Hex) -> Bool {
+        guard map.isInside(hex), !map.isBlocked(hex) else { return false }
+        let occupants = units.filter { $0.position == hex && $0.status != .destroyed }
+        return !occupants.contains(where: { $0.type != .infantry })
+    }
+
     func canReach(start: Hex, end: Hex, maxMove: Int) -> Bool {
         if start == end { return true }
         var frontier: [(Hex, Int)] = [(start, 0)]
@@ -508,6 +658,8 @@ final class GameState: ObservableObject {
 }
 
 enum Phase: CaseIterable {
+    case defenderSetup
+    case ogreSetup
     case ogreMove
     case ogreFire
     case defenderMove
@@ -516,6 +668,8 @@ enum Phase: CaseIterable {
 
     var title: String {
         switch self {
+        case .defenderSetup: return "Defender Setup"
+        case .ogreSetup: return "Ogre Setup"
         case .ogreMove: return "Ogre Movement"
         case .ogreFire: return "Ogre Fire"
         case .defenderMove: return "Defender Movement"
@@ -530,5 +684,28 @@ enum Phase: CaseIterable {
 
     var isFirePhase: Bool {
         self == .ogreFire || self == .defenderFire
+    }
+
+    var isSetupPhase: Bool {
+        self == .defenderSetup || self == .ogreSetup
+    }
+}
+
+extension GameState {
+    var phaseHint: String? {
+        switch phase {
+        case .defenderSetup:
+            return "Defender: tap a unit, then tap any hex with q+r ≥ 8 to place."
+        case .ogreSetup:
+            return "Ogre: tap the Ogre, then tap any bottom-row hex."
+        case .ogreMove:
+            return "Ogre movement: tap the Ogre, then tap a highlighted hex."
+        case .defenderMove:
+            return "Defender movement: tap a unit, then tap a highlighted hex."
+        case .gevSecondMove:
+            return "GEV second move: select a GEV and move up to 3 hexes."
+        default:
+            return nil
+        }
     }
 }

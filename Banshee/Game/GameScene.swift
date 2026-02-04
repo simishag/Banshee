@@ -8,6 +8,7 @@ final class GameScene: SKScene {
     private var selectionNode: SKShapeNode?
     private var mapBounds: CGRect = .zero
     private let showHexCoords = true
+    private var highlightNodes: [SKShapeNode] = []
 
     func bind(to gameState: GameState) {
         self.gameState = gameState
@@ -120,6 +121,20 @@ final class GameScene: SKScene {
             } else if let ogre = gameState.ogre, ogre.id == selectedID, let node = ogreNode {
                 selectionNode = highlightNode(at: node.position)
             }
+        }
+    }
+
+    func updateHighlightHexes(_ hexes: [Hex]) {
+        highlightNodes.forEach { $0.removeFromParent() }
+        highlightNodes.removeAll()
+        guard !hexes.isEmpty else { return }
+        for hex in hexes {
+            let center = hexToPixel(hex)
+            let shape = SKShapeNode(path: hexPathAt(center: center))
+            shape.strokeColor = SKColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 0.5)
+            shape.lineWidth = 2
+            addChild(shape)
+            highlightNodes.append(shape)
         }
     }
 
