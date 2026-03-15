@@ -5,16 +5,30 @@ struct GameView: View {
     @StateObject private var gameState = GameState()
     @State private var showRecordSheet = false
     @State private var showRules = false
+    @State private var hudCollapsed = false
 
     let onExit: () -> Void
 
     var body: some View {
         ZStack {
-            SpriteView(scene: gameState.scene)
+            SpriteKitContainerView(scene: gameState.scene)
                 .ignoresSafeArea()
 
             VStack {
-                GameHUDView(gameState: gameState, onExit: onExit)
+                if hudCollapsed {
+                    HStack {
+                        Button("Show HUD") { hudCollapsed = false }
+                            .buttonStyle(CompactButtonStyle())
+                        Spacer()
+                        Button("Exit") { onExit() }
+                            .buttonStyle(CompactButtonStyle())
+                    }
+                    .padding(10)
+                    .background(Color.black.opacity(0.35))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                } else {
+                    GameHUDView(gameState: gameState, onExit: onExit, onCollapse: { hudCollapsed = true })
+                }
                 Spacer()
                 HStack {
                     Button("Record Sheet") { showRecordSheet = true }
@@ -37,6 +51,7 @@ struct GameView: View {
 struct GameHUDView: View {
     @ObservedObject var gameState: GameState
     let onExit: () -> Void
+    let onCollapse: () -> Void
 
     var body: some View {
         VStack(spacing: 8) {
@@ -49,8 +64,12 @@ struct GameHUDView: View {
                         .foregroundStyle(.white.opacity(0.8))
                 }
                 Spacer()
-                Button("Exit") { onExit() }
-                    .buttonStyle(CompactButtonStyle())
+                HStack(spacing: 8) {
+                    Button("Hide") { onCollapse() }
+                        .buttonStyle(CompactButtonStyle())
+                    Button("Exit") { onExit() }
+                        .buttonStyle(CompactButtonStyle())
+                }
             }
 
             if let hint = gameState.phaseHint {

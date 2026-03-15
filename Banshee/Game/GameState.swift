@@ -169,6 +169,8 @@ final class GameState: ObservableObject {
     }
 
     func handleHexTap(_ hex: Hex) {
+        print("tap: \(hex.q) \(hex.r)")
+        
         if let ogre, ogre.position == hex {
             selectedUnitID = ogre.id
             scene.updateSelection()

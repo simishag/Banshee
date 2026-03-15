@@ -3,23 +3,48 @@ import Foundation
 struct Hex: Hashable, Codable {
     let q: Int
     let r: Int
+    let s: Int
+    
+    init(q: Int, r: Int) {
+        self.q = q
+        self.r = r
+        s = -q-r
+    }
 
     func distance(to other: Hex) -> Int {
-        let dq = q - other.q
-        let dr = r - other.r
-        let ds = (-q - r) - (-other.q - other.r)
-        return max(abs(dq), abs(dr), abs(ds))
+        let a = Hex.cubeFromOffset(self)
+        let b = Hex.cubeFromOffset(other)
+        let dx = a.x - b.x
+        let dy = a.y - b.y
+        let dz = a.z - b.z
+        return max(abs(dx), abs(dy), abs(dz))
     }
 
     func neighbors() -> [Hex] {
-        [
-            Hex(q: q + 1, r: r),
-            Hex(q: q + 1, r: r - 1),
-            Hex(q: q, r: r - 1),
-            Hex(q: q - 1, r: r),
-            Hex(q: q - 1, r: r + 1),
-            Hex(q: q, r: r + 1)
-        ]
+        let odd = r & 1
+        let deltasEven = [(1, 0), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1)]
+        let deltasOdd = [(1, 0), (1, -1), (0, -1), (-1, 0), (0, 1), (1, 1)]
+        let deltas = odd == 0 ? deltasEven : deltasOdd
+        return deltas.map { Hex(q: q + $0.0, r: r + $0.1) }
+    }
+
+    struct Cube {
+        let x: Int
+        let y: Int
+        let z: Int
+    }
+
+    static func cubeFromOffset(_ hex: Hex) -> Cube {
+        let x = hex.q - (hex.r - (hex.r & 1)) / 2
+        let z = hex.r
+        let y = -x - z
+        return Cube(x: x, y: y, z: z)
+    }
+
+    static func offsetFromCube(_ cube: Cube) -> Hex {
+        let q = cube.x + (cube.z - (cube.z & 1)) / 2
+        let r = cube.z
+        return Hex(q: q, r: r)
     }
 }
 

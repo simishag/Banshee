@@ -2,24 +2,30 @@ import SpriteKit
 
 final class GameScene: SKScene {
     private weak var gameState: GameState?
-    private let hexSize: CGFloat = 32
+    private let hexInnerRadius: CGFloat = 32
     private var unitNodes: [UUID: SKNode] = [:]
     private var ogreNode: SKNode?
     private var selectionNode: SKShapeNode?
     private var mapBounds: CGRect = .zero
     private let showHexCoords = true
     private var highlightNodes: [SKShapeNode] = []
+    private let cameraNode = SKCameraNode()
+    
+    private let SQRT_3: CGFloat = sqrt(3.0)
+    private let THREE_HALFS: CGFloat = 3.0/2.0
 
     func bind(to gameState: GameState) {
         self.gameState = gameState
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 0.08, green: 0.1, blue: 0.12, alpha: 1.0)
+        ensureCamera()
         buildMap()
         syncUnits()
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
+        ensureCamera()
         buildMap()
         syncUnits()
     }
@@ -31,23 +37,49 @@ final class GameScene: SKScene {
 
         guard let map = gameState?.map else { return }
         mapBounds = computeMapBounds(map)
+        ensureCamera()
 
         let gridNode = SKShapeNode()
         let path = CGMutablePath()
         let labelNode = SKNode()
-        for r in 0..<map.height {
-            for q in 0..<map.width {
-                let center = hexToPixel(Hex(q: q, r: r))
-                let hexPath = hexPathAt(center: center)
-                path.addPath(hexPath)
-                if showHexCoords {
-                    let label = SKLabelNode(text: "(\(q),\(r))")
-                    label.fontSize = 12
-                    label.fontColor = SKColor(red: 0.0, green: 1.0, blue: 0.0, alpha: 0.8)
-                    label.verticalAlignmentMode = .center
-                    label.horizontalAlignmentMode = .center
-                    label.position = center
-                    labelNode.addChild(label)
+        
+        let cutoff = (map.width / 2) + (map.width % 2)
+
+        for q in 0..<map.width {
+        //for q in 1...map.width {
+            for r in 0..<map.height+cutoff {
+            //for r in 1...map.height+cutoff {
+            
+                //let trueR = offset - q + (q % 2)
+                let modBump = max(((q-1) % 2), 0)
+                //let minBump = min((q-1) / 2, 1)
+                let qBump = (q-1) / 2
+                let offset = cutoff - qBump - modBump
+                
+                //let realQ = max(q-1, 0)
+                
+                let minR = offset - (q % 2)
+                let maxR = map.height + offset //- max(((q-1) % 2), 0)
+                
+                if (q < 6 && r >= minR && r < (minR + 6)) {
+                    print("trueR: \(q), \(r) --- \(qBump), \(modBump), \(offset) --- \(minR), \(maxR)")
+                    //print("trueR: \(q), \(r) --- \(minR), \(maxR)")
+                }
+                
+                if (r >= minR && r < maxR) {
+                    let center = hexToPixel(Hex(q: q, r: r))
+                    let hexPath = hexPathAt(center: center)
+                    path.addPath(hexPath)
+                    if showHexCoords {
+                        //let s = -q-r
+                        let label = SKLabelNode(text: "(\(q),\(r)")
+                        label.fontSize = 12
+                        label.fontColor = SKColor(red: 0.0, green: 1.0, blue: 0.0, alpha: 0.8)
+                        label.verticalAlignmentMode = .center
+                        label.horizontalAlignmentMode = .center
+                        label.position = center
+                        labelNode.addChild(label)
+                    }
                 }
             }
         }
@@ -58,11 +90,21 @@ final class GameScene: SKScene {
         if showHexCoords {
             addChild(labelNode)
         }
+        
+        // draw horizontal line across bottom
+        var bottomR = 8
+        for q in 0..<map.width {
+            if q % 2 == 1 {
+                bottomR -= 1
+            }
+            //print("\(q), \(bottomR)")
+        }
 
         let craterNode = SKNode()
         for crater in map.craters {
             let center = hexToPixel(crater)
-            let shape = SKShapeNode(circleOfRadius: hexSize * 0.35)
+            let shape = SKShapeNode(circleOfRadius: hexOuterRadius() * 0.35)
+            //let shape = SKShapeNode(circleOfRadius: hexInnerRadius * 0.35)
             shape.position = center
             shape.fillColor = SKColor(red: 0.2, green: 0.18, blue: 0.18, alpha: 1)
             shape.strokeColor = SKColor(red: 0.3, green: 0.25, blue: 0.25, alpha: 1)
@@ -138,6 +180,19 @@ final class GameScene: SKScene {
         }
     }
 
+    func setCameraScale(_ scale: CGFloat) {
+        ensureCamera()
+        cameraNode.setScale(scale)
+    }
+
+    func panCamera(by delta: CGPoint) {
+        ensureCamera()
+        cameraNode.position = CGPoint(
+            x: cameraNode.position.x - delta.x * cameraNode.xScale,
+            y: cameraNode.position.y - delta.y * cameraNode.yScale
+        )
+    }
+
     func animateUnitMove(unitID: UUID) {
         guard let node = unitNodes[unitID], let unit = gameState?.units.first(where: { $0.id == unitID }) else { return }
         let target = hexToPixel(unit.position)
@@ -181,7 +236,7 @@ final class GameScene: SKScene {
     }
 
     private func makeUnitNode(_ unit: Unit) -> SKNode {
-        let size = hexSize * 0.6
+        let size = hexOuterRadius() * 0.6
         let shape = SKShapeNode(rectOf: CGSize(width: size, height: size), cornerRadius: 6)
         shape.fillColor = color(for: unit.type)
         shape.strokeColor = .white
@@ -200,7 +255,7 @@ final class GameScene: SKScene {
     }
 
     private func makeOgreNode() -> SKNode {
-        let size = hexSize * 0.9
+        let size = hexOuterRadius() * 0.9
         let shape = SKShapeNode(rectOf: CGSize(width: size * 1.3, height: size), cornerRadius: 8)
         shape.fillColor = SKColor(red: 0.6, green: 0.1, blue: 0.1, alpha: 1)
         shape.strokeColor = .white
@@ -224,7 +279,7 @@ final class GameScene: SKScene {
     }
 
     private func highlightNode(at position: CGPoint) -> SKShapeNode {
-        let ring = SKShapeNode(circleOfRadius: hexSize * 0.7)
+        let ring = SKShapeNode(circleOfRadius: hexOuterRadius() * 0.7)
         ring.position = position
         ring.strokeColor = .yellow
         ring.lineWidth = 2
@@ -241,8 +296,11 @@ final class GameScene: SKScene {
     private func pixelToHex(_ point: CGPoint) -> Hex {
         let origin = CGPoint(x: frame.midX - mapBounds.midX, y: frame.midY - mapBounds.midY)
         let pt = CGPoint(x: point.x - origin.x, y: point.y - origin.y)
-        let q = (2.0/3 * pt.x) / hexSize
-        let r = (-1.0/3 * pt.x + sqrt(3)/3 * pt.y) / hexSize
+        let outer = hexOuterRadius()
+        
+        let q = (SQRT_3 / 3 * pt.x - 1.0 / 3 * pt.y) / outer
+        let r = (2.0 / 3 * pt.y) / outer
+        
         return hexRound(q: q, r: r)
     }
 
@@ -266,7 +324,8 @@ final class GameScene: SKScene {
         } else {
             rz = -rx - ry
         }
-        return Hex(q: Int(rx), r: Int(rz))
+        let cube = Hex.Cube(x: Int(rx), y: Int(ry), z: Int(rz))
+        return Hex.offsetFromCube(cube)
     }
 
     private func hexPathAt(center: CGPoint) -> CGPath {
@@ -281,19 +340,34 @@ final class GameScene: SKScene {
     }
 
     private func hexCorners(center: CGPoint) -> [CGPoint] {
-        (0..<6).map { i in
+        //let outer = hexOuterRadius()
+        let outer = hexInnerRadius
+        let corners = (0..<6).map { i in
             let angle = CGFloat.pi / 180 * (60 * CGFloat(i))
+            //return CGPoint(
             return CGPoint(
-                x: center.x + hexSize * cos(angle),
-                y: center.y + hexSize * sin(angle)
+                x: center.x + outer * cos(angle),
+                y: center.y + outer * sin(angle)
             )
         }
+        return corners
     }
 
     private func axialToPixel(_ hex: Hex) -> CGPoint {
-        let x = hexSize * (3.0 / 2.0 * CGFloat(hex.q))
-        let y = hexSize * (sqrt(3) * (CGFloat(hex.r) + CGFloat(hex.q) / 2.0))
+        let x = hexInnerRadius * 3.0/2.0 * CGFloat(hex.q)
+        let y = hexInnerRadius * (SQRT_3/2.0 * CGFloat(hex.q) + SQRT_3 * CGFloat(hex.r)) - 1
+        
+        if (hex.q == 0) {
+            //print("\(hex.q) \(hex.r) --- \(x) \(y)")
+        }
+        //test
+        //let y = hexInnerRadius * (SQRT_3/2.0 * CGFloat(hex.q) + SQRT_3 * CGFloat(hex.r))
+        
         return CGPoint(x: x, y: y)
+    }
+
+    private func hexOuterRadius() -> CGFloat {
+        hexInnerRadius * 2.0 / SQRT_3
     }
 
     private func computeMapBounds(_ map: MapData) -> CGRect {
@@ -312,12 +386,21 @@ final class GameScene: SKScene {
             }
         }
 
-        let padding = hexSize
+        let padding = hexOuterRadius()
         return CGRect(
             x: minX - padding,
             y: minY - padding,
             width: (maxX - minX) + padding * 2,
             height: (maxY - minY) + padding * 2
         )
+    }
+
+    private func ensureCamera() {
+        if camera == nil {
+            camera = cameraNode
+        }
+        if cameraNode.parent == nil {
+            addChild(cameraNode)
+        }
     }
 }

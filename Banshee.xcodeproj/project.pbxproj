@@ -11,6 +11,7 @@
 		A11B00000000000300000000 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000010300000000 /* GameView.swift */; };
 		A11B00000000000400000000 /* RulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000010400000000 /* RulesView.swift */; };
 		A11B00000000000500000000 /* RecordSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000010500000000 /* RecordSheetView.swift */; };
+		A11B00000000000B00000000 /* SpriteKitContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000010600000000 /* SpriteKitContainerView.swift */; };
 		A11B00000000000600000000 /* GameModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000020100000000 /* GameModels.swift */; };
 		A11B00000000000700000000 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000020200000000 /* GameState.swift */; };
 		A11B00000000000800000000 /* GameScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11B00000000020300000000 /* GameScene.swift */; };
@@ -24,6 +25,7 @@
 		A11B00000000010300000000 /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
 		A11B00000000010400000000 /* RulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesView.swift; sourceTree = "<group>"; };
 		A11B00000000010500000000 /* RecordSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordSheetView.swift; sourceTree = "<group>"; };
+		A11B00000000010600000000 /* SpriteKitContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpriteKitContainerView.swift; sourceTree = "<group>"; };
 		A11B00000000020100000000 /* GameModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameModels.swift; sourceTree = "<group>"; };
 		A11B00000000020200000000 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
 		A11B00000000020300000000 /* GameScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameScene.swift; sourceTree = "<group>"; };
@@ -50,6 +52,7 @@
 				A11B00000000010300000000 /* GameView.swift */,
 				A11B00000000010400000000 /* RulesView.swift */,
 				A11B00000000010500000000 /* RecordSheetView.swift */,
+				A11B00000000010600000000 /* SpriteKitContainerView.swift */,
 				A11B00000000090000000000 /* Game */,
 				A11B00000000030100000000 /* Assets.xcassets */,
 				A11B00000000040100000000 /* Info.plist */,
@@ -150,6 +153,7 @@
 				A11B00000000000300000000 /* GameView.swift in Sources */,
 				A11B00000000000400000000 /* RulesView.swift in Sources */,
 				A11B00000000000500000000 /* RecordSheetView.swift in Sources */,
+				A11B00000000000B00000000 /* SpriteKitContainerView.swift in Sources */,
 				A11B00000000000600000000 /* GameModels.swift in Sources */,
 				A11B00000000000700000000 /* GameState.swift in Sources */,
 				A11B00000000000800000000 /* GameScene.swift in Sources */,
